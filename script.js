@@ -44,50 +44,50 @@ let currentPageNilai = 1;
 const itemsPerPage = 5;
 const itemsPerPageNilai = 5;
 
-const urlParams = new URLSearchParams(window.location.search);
-const akses = urlParams.get("akses");
+// === KONFIGURASI MAINTENANCE ===
+const isUnderMaintenance = false; // Ubah menjadi true jika situs sedang perbaikan
 
-// Cek apakah situs sedang dalam perbaikan
-const isUnderMaintenance = false; // Ubah menjadi false jika situs sudah siap
-
-// Fungsi untuk mengarahkan ke halaman 404 jika dalam perbaikan
+// === CEK DAN ATUR TAMPILAN AKSES ===
 function checkMaintenance() {
   if (isUnderMaintenance) {
     window.location.href = "404.html";
-  } else {
-    // Jika tidak dalam perbaikan, jalankan logika akses
-    const akses = "tchr123"; // Ganti dengan logika autentikasi yang sesuai
+    return;
+  }
 
-    if (akses === "tchr123") {
-      document.querySelector("#siswa-container").style.display = "block";
-    }
+  // Ambil parameter akses dari URL (misalnya: index.html?akses=tchr123)
+  const akses = new URLSearchParams(window.location.search).get("akses");
 
-    if (akses === "admn123") {
-      document.querySelector("#siswa-container").style.display = "block";
-      document.getElementById("uploadSiswaSection").style.display = "block";
-      document.getElementById("uploadSiswaNilaiSection").style.display =
-        "block";
-      document.getElementById("daftarMuridSection").style.display = "block";
-      document.getElementById("daftarNilaiSection").style.display = "block";
-    }
+  // Sembunyikan semua section terlebih dahulu
+  document.querySelector("#siswa-container").style.display = "none";
+  document.getElementById("uploadSiswaSection").style.display = "none";
+  document.getElementById("uploadSiswaNilaiSection").style.display = "none";
+  document.getElementById("daftarMuridSection").style.display = "none";
+  document.getElementById("daftarNilaiSection").style.display = "none";
+  document.getElementById("cariNilaiSection").style.display = "none";
+
+  // Akses guru
+  if (akses === "tchr123") {
+    document.querySelector("#siswa-container").style.display = "block";
+    document.getElementById("cariNilaiSection").style.display = "block";
+  }
+
+  // Akses admin
+  if (akses === "admn123") {
+    document.querySelector("#siswa-container").style.display = "block";
+    document.getElementById("uploadSiswaSection").style.display = "block";
+    document.getElementById("uploadSiswaNilaiSection").style.display = "block";
+    document.getElementById("daftarMuridSection").style.display = "block";
+    document.getElementById("daftarNilaiSection").style.display = "block";
+  }
+
+  // Tanpa akses: hanya bisa lihat fitur cari nilai
+  if (!akses) {
+    document.getElementById("cariNilaiSection").style.display = "block";
   }
 }
 
-// Panggil fungsi saat halaman dimuat
+// Jalankan saat halaman dimuat
 window.onload = checkMaintenance;
-
-if (akses === "tchr123") {
-  document.querySelector("#siswa-container").style.display = "block";
-}
-
-if (akses === "admn123") {
-  document.querySelector("#siswa-container").style.display = "block";
-
-  document.getElementById("uploadSiswaSection").style.display = "block";
-  document.getElementById("uploadSiswaNilaiSection").style.display = "block";
-  document.getElementById("daftarMuridSection").style.display = "block";
-  document.getElementById("daftarNilaiSection").style.display = "block";
-}
 
 document.getElementById("excelInput").addEventListener("change", (e) => {
   const file = e.target.files[0];
