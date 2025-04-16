@@ -5,3 +5,14 @@ service cloud.firestore {
     }
   }
 }
+
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCBRL9AECOyAUphroj2jfM2yJ-IzTEOuco",
+  authDomain: "mec-itp-input-nilai-ujian.firebaseapp.com",
+  projectId: "mec-itp-input-nilai-ujian",
+  storageBucket: "mec-itp-input-nilai-ujian.firebasestorage.app",
+  messagingSenderId: "1064138437195",
+  appId: "1:1064138437195:web:f95c2b27fb8a6d6f2cd3ce",
+  measurementId: "G-13WNWY629C",
+};

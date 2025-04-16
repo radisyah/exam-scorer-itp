@@ -45,7 +45,7 @@ const itemsPerPage = 5;
 const itemsPerPageNilai = 5;
 
 // === KONFIGURASI MAINTENANCE ===
-const isUnderMaintenance = true; // Ubah menjadi true jika situs sedang perbaikan
+const isUnderMaintenance = false; // Ubah menjadi true jika situs sedang perbaikan
 
 // === CEK DAN ATUR TAMPILAN AKSES ===
 function checkMaintenance() {
@@ -111,7 +111,7 @@ document.getElementById("excelInput").addEventListener("change", (e) => {
     const workbook = XLSX.read(data, { type: "array" });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     siswaArray = XLSX.utils.sheet_to_json(sheet, {
-      header: ["nama", "kelas", "level", "cabang"],
+      header: ["noInduk", "nama", "kelas", "level", "cabang"], // ✅ Tambah ini
       range: 1,
     });
 
@@ -121,7 +121,7 @@ document.getElementById("excelInput").addEventListener("change", (e) => {
     }
 
     const invalidRows = siswaArray.filter(
-      (s) => !s.nama || !s.kelas || !s.level || !s.cabang
+      (s) => !s.noInduk || !s.nama || !s.kelas || !s.level || !s.cabang
     );
     if (invalidRows.length > 0) {
       Swal.fire(
@@ -134,9 +134,9 @@ document.getElementById("excelInput").addEventListener("change", (e) => {
 
     let htmlTable = "<table style='width:100%;text-align:left'>";
     htmlTable +=
-      "<tr><th>Nama</th><th>Kelas</th><th>Level</th><th>Cabang</th></tr>";
+      "<tr><th>noInduk</th><th>Nama</th><th>Kelas</th><th>Level</th><th>Cabang</th></tr>";
     siswaArray.forEach((s) => {
-      htmlTable += `<tr><td>${s.nama}</td><td>${s.kelas}</td><td>${s.level}</td><td>${s.cabang}</td></tr>`;
+      htmlTable += `<tr><td>${s.noInduk}</td><td>${s.nama}</td><td>${s.kelas}</td><td>${s.level}</td><td>${s.cabang}</td></tr>`;
     });
     htmlTable += "</table>";
 
@@ -177,10 +177,8 @@ document.getElementById("excelNilaiInput").addEventListener("change", (e) => {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     siswaArray = XLSX.utils.sheet_to_json(sheet, {
       header: [
+        "noInduk",
         "nama",
-        "kelas",
-        "level",
-        "cabang",
         "reading",
         "listening",
         "writing",
@@ -197,10 +195,8 @@ document.getElementById("excelNilaiInput").addEventListener("change", (e) => {
 
     const invalidRows = siswaArray.filter(
       (s) =>
+        !s.noInduk ||
         !s.nama ||
-        !s.kelas ||
-        !s.level ||
-        !s.cabang ||
         !s.reading ||
         !s.listening ||
         !s.writing ||
@@ -217,9 +213,9 @@ document.getElementById("excelNilaiInput").addEventListener("change", (e) => {
 
     let htmlTable = "<table style='width:100%;text-align:left'>";
     htmlTable +=
-      "<tr><th>Nama</th><th>Kelas</th><th>Level</th><th>Cabang</th><th>Reading</th><th>Listening</th><th>Writing</th><th>Speaking</th><th>Matematika</th></tr>";
+      "<tr><th>No Induk</th><th>Nama</th><th>Reading</th><th>Listening</th><th>Writing</th><th>Speaking</th><th>Matematika</th></tr>";
     siswaArray.forEach((s) => {
-      htmlTable += `<tr><td>${s.nama}</td><td>${s.kelas}</td><td>${s.level}</td><td>${s.cabang}</td><td>${s.reading}</td><td>${s.listening}</td><td>${s.writing}</td><td>${s.speaking}</td><td>${s.matematika}</td></tr>`;
+      htmlTable += `<tr><td>${s.noInduk}</td><td>${s.nama}</td><td>${s.reading}</td><td>${s.listening}</td><td>${s.writing}</td><td>${s.speaking}</td><td>${s.matematika}</td></tr>`;
     });
     htmlTable += "</table>";
 
@@ -343,9 +339,6 @@ async function simpanNilaiTanpaDuplikat(siswaArray) {
   let berhasil = 0;
   let duplikat = [];
 
-  // Reset daftarMuridCache sebelum proses baru dimulai
-  daftarMuridCache = [];
-
   Swal.fire({
     title: "Menyimpan data...",
     html: `
@@ -360,25 +353,35 @@ async function simpanNilaiTanpaDuplikat(siswaArray) {
   });
 
   for (let i = 0; i < total; i++) {
-    const siswa = siswaArray[i];
+    const s = siswaArray[i];
 
-    // Pengecekan duplikat di Firestore
+    const siswa = {
+      noInduk: s.noInduk?.toString().trim() || "",
+      nama: s.nama?.toString().trim() || "",
+      reading: s.reading !== undefined ? parseInt(s.reading) : null,
+      listening: s.listening !== undefined ? parseInt(s.listening) : null,
+      writing: s.writing !== undefined ? parseInt(s.writing) : null,
+      speaking: s.speaking !== undefined ? parseInt(s.speaking) : null,
+      matematika: s.matematika !== undefined ? parseInt(s.matematika) : null,
+      tanggal: new Date().toISOString(),
+    };
+
+    if (!siswa.nama || !siswa.noInduk) {
+      continue; // skip baris tidak valid
+    }
+
     const querySnapshot = await getDocs(
       query(collection(db, "nilai"), where("nama", "==", siswa.nama))
     );
 
     if (!querySnapshot.empty) {
-      // Jika ada data yang sudah ada di Firestore, tandai sebagai duplikat
       duplikat.push(siswa.nama);
     } else {
-      // Jika tidak ada duplikat, simpan data ke Firestore
-      const docRef = await addDoc(collection(db, "nilai"), siswa);
-      // Tambahkan siswa ke cache
-      daftarMuridCache.push({ id: docRef.id, ...siswa });
+      await setDoc(doc(db, "nilai", siswa.nama.toLowerCase()), siswa);
       berhasil++;
     }
 
-    // Update progress bar
+    // Progress bar
     const percent = Math.floor(((i + 1) / total) * 100);
     document.getElementById("progressBar").style.width = `${percent}%`;
     document.getElementById("progressText").textContent = `${
@@ -386,7 +389,6 @@ async function simpanNilaiTanpaDuplikat(siswaArray) {
     } / ${total} diproses`;
   }
 
-  // Setelah selesai, tampilkan notifikasi
   Swal.fire({
     icon: duplikat.length ? "warning" : "success",
     title: "Selesai",
@@ -395,7 +397,6 @@ async function simpanNilaiTanpaDuplikat(siswaArray) {
     }`,
   });
 
-  // Reset input file setelah selesai
   document.getElementById("excelNilaiInput").value = "";
 }
 
@@ -482,10 +483,8 @@ document
     if (!muridDipilih) return Swal.fire("❌ Belum memilih murid.");
 
     const nilai = {
+      noInduk: muridDipilih.noInduk || "",
       nama: muridDipilih.nama,
-      kelas: muridDipilih.kelas,
-      level: muridDipilih.level,
-      cabang: muridDipilih.cabang,
       reading: parseInt(document.getElementById("reading").value) || null,
       listening: parseInt(document.getElementById("listening").value) || null,
       writing: parseInt(document.getElementById("writing").value) || null,
@@ -532,29 +531,26 @@ cariNilaiInput.addEventListener(
 
     if (!keyword) return;
 
-    const data = nilaiCache.find(
-      (d) => d.nama.toLowerCase().includes(keyword) // Pastikan tanda kurung di sini lengkap.
-    );
+    const data = nilaiCache.find((d) => d.nama.toLowerCase().includes(keyword));
 
     if (data) {
+      // Cari murid dari cache murid berdasarkan nama
+      const murid = daftarMuridCache.find(
+        (m) => m.nama.toLowerCase() === data.nama.toLowerCase()
+      );
+
       hasilNilai.innerHTML = `
-      <div class="nilai-card">
-        <h3>${data.nama} - ${data.cabang}, Kelas ${data.kelas}, Level ${
-        data.level
-      }</h3>
-        <p>📖 Reading: ${data.reading !== null ? data.reading : "menunggu"}</p>
-        <p>🎧 Listening: ${
-          data.listening !== null ? data.listening : "menunggu"
-        }</p>
-        <p>✍️ Writing: ${data.writing !== null ? data.writing : "menunggu"}</p>
-        <p>🗣️ Speaking: ${
-          data.speaking !== null ? data.speaking : "menunggu"
-        }</p>
-        <p>🔢 Matematika: ${
-          data.matematika !== null ? data.matematika : "menunggu"
-        }</p>
-      </div>
-    `;
+        <div class="nilai-card">
+          <h3>${data.nama} - ${murid?.cabang || "-"}, Kelas ${
+        murid?.kelas || "-"
+      }, Level ${murid?.level || "-"}</h3>
+          <p>📖 Reading: ${data.reading ?? "menunggu"}</p>
+          <p>🎧 Listening: ${data.listening ?? "menunggu"}</p>
+          <p>✍️ Writing: ${data.writing ?? "menunggu"}</p>
+          <p>🗣️ Speaking: ${data.speaking ?? "menunggu"}</p>
+          <p>🔢 Matematika: ${data.matematika ?? "menunggu"}</p>
+        </div>
+      `;
     } else {
       hasilNilai.textContent = "❌ Nilai tidak ditemukan.";
     }
@@ -565,20 +561,24 @@ function renderMuridTablePage(data, page = 1) {
   const daftarMurid = document.getElementById("daftarMurid");
   daftarMurid.innerHTML = "";
 
+  const sorted = [...data].sort((a, b) =>
+    String(a.noInduk || "").localeCompare(String(b.noInduk || ""))
+  );
+
   const start = (page - 1) * itemsPerPage;
   const end = start + itemsPerPage;
-  const paginatedItems = data.slice(start, end);
+  const paginatedItems = sorted.slice(start, end);
 
   paginatedItems.forEach((murid) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td class="sticky-col">${murid.nama}</td>
+      <td class="sticky-col">${murid.noInduk || "-"}</td>
+      <td>${murid.nama}</td>
       <td>${murid.kelas}</td>
       <td>${murid.level}</td>
       <td>${murid.cabang}</td>
       <td>
         <button class="btn-edit" data-nama="${murid.nama}">✏️ Edit</button>
-
         <button class="btn-delete" data-nama="${murid.nama}">🗑 Hapus</button>
       </td>
     `;
@@ -662,6 +662,7 @@ document.addEventListener("click", async (e) => {
       const data = docRef.data();
       editDocId = docRef.id;
 
+      document.getElementById("editNoInduk").value = data.noInduk || "";
       document.getElementById("editNama").value = data.nama || "";
       document.getElementById("editKelas").value = data.kelas || "";
       document.getElementById("editLevel").value = data.level || "";
@@ -691,6 +692,7 @@ document
     if (!editDocId) return;
 
     const updatedData = {
+      noInduk: document.getElementById("editNoInduk").value.trim(),
       nama: document.getElementById("editNama").value.trim(),
       kelas: document.getElementById("editKelas").value.trim(),
       level: document.getElementById("editLevel").value.trim(),
@@ -707,12 +709,10 @@ document
     try {
       await setDoc(doc(db, "murid", editDocId), updatedData);
 
-      // ✅ Update data di daftarMuridCache
-      const index = daftarMuridCache.findIndex(
-        (m) => m.nama === updatedData.nama
-      );
+      // ✅ Update cache
+      const index = daftarMuridCache.findIndex((m) => m.id === editDocId);
       if (index !== -1) {
-        daftarMuridCache[index] = updatedData;
+        daftarMuridCache[index] = { id: editDocId, ...updatedData };
       }
 
       Swal.fire({
@@ -723,7 +723,7 @@ document
         showConfirmButton: false,
       });
 
-      // ✅ Tutup modal dan render ulang
+      // ✅ Tutup modal & render ulang tabel
       const modal = document.getElementById("modalEditMurid");
       modal.classList.remove("show");
       setTimeout(() => modal.classList.add("hidden"), 300);
@@ -821,10 +821,8 @@ document
 
     try {
       const dataExport = nilaiCache.map((d) => ({
+        Noinduk: d.noInduk || "",
         Nama: d.nama || "",
-        Kelas: d.kelas || "",
-        Level: d.level || "",
-        Cabang: d.cabang || "",
         Reading: d.reading ?? "",
         Listening: d.listening ?? "",
         Writing: d.writing ?? "",
@@ -851,22 +849,237 @@ document
     }
   });
 
+document
+  .getElementById("exportNilaiInggrisITP")
+  .addEventListener("click", () => {
+    exportNilaiInggrisITP();
+  });
+
+function exportNilaiInggrisITP() {
+  const endpoint =
+    "https://script.google.com/macros/s/AKfycbz4g9sS7uhKfsnYHzAGtJbNardBkN4ik3l7uYZB5xr-3_1wUFW85Vd3I9_M5G5n25nZ/exec";
+
+  const cabang = "ITP";
+
+  const merged = nilaiCache.map((nilai) => {
+    const murid = daftarMuridCache.find(
+      (m) => m.nama.toLowerCase() === nilai.nama.toLowerCase()
+    );
+    return {
+      ...nilai,
+      cabang: murid?.cabang || "",
+      noInduk: murid?.noInduk || "",
+    };
+  });
+
+  const sorted = merged
+    .filter((n) => (n.cabang || "").toLowerCase() === "itp")
+    .sort((a, b) =>
+      String(a.noInduk || "").localeCompare(String(b.noInduk || ""))
+    );
+
+  if (sorted.length === 0) {
+    return Swal.fire({
+      icon: "info",
+      title: `❌ Tidak Ada Data ${cabang}`,
+      text: `Tidak ditemukan murid dari cabang ${cabang} di daftar nilai.`,
+    });
+  }
+
+  const previewTable = sorted
+    .map(
+      (n, i) => `
+        <tr>
+          <td>${i + 1}</td>
+          <td>${n.noInduk || "-"}</td>
+          <td>${n.nama || "-"}</td>
+          <td>${n.reading ?? ""}</td>
+          <td>${n.listening ?? ""}</td>
+          <td>${n.writing ?? ""}</td>
+          <td>${n.speaking ?? ""}</td>
+        </tr>`
+    )
+    .join("");
+
+  Swal.fire({
+    title: `📋 Konfirmasi Export Nilai ${cabang}`,
+    html: `
+        <p>Berikut adalah data yang akan dikirim ke spreadsheet:</p>
+        <div style="max-height: 300px; overflow-y: auto; text-align:left">
+          <table style="width:100%; font-size: 12px; border-collapse: collapse;" border="1" cellpadding="4">
+            <thead>
+              <tr style="background:#333; color:white">
+                <th>#</th>
+                <th>No Induk</th>
+                <th>Nama</th>
+                <th>Reading</th>
+                <th>Listening</th>
+                <th>Writing</th>
+                <th>Speaking</th>
+              </tr>
+            </thead>
+            <tbody>${previewTable}</tbody>
+          </table>
+        </div>
+      `,
+    width: 750,
+    showCancelButton: true,
+    confirmButtonText: "✅ Kirim Sekarang",
+  }).then(async (result) => {
+    if (!result.isConfirmed) return;
+
+    const payload = {
+      noInduk: sorted.map((n) => n.noInduk ?? ""),
+      nama: sorted.map((n) => n.nama ?? ""),
+      reading: sorted.map((n) => n.reading ?? ""),
+      listening: sorted.map((n) => n.listening ?? ""),
+      writing: sorted.map((n) => n.writing ?? ""),
+      speaking: sorted.map((n) => n.speaking ?? ""),
+    };
+
+    Swal.fire({
+      title: "Mengirim data...",
+      text: `Sedang mengirim nilai ${cabang} ke spreadsheet...`,
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    try {
+      await fetch(endpoint, {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+        mode: "no-cors",
+      });
+
+      Swal.fire("✅ Sukses", `Data ${cabang} berhasil dikirim.`, "success");
+    } catch (err) {
+      Swal.fire("❌ Gagal", `Gagal kirim data ${cabang}.`, "error");
+    }
+  });
+}
+
+document.getElementById("exportNilaiMatITP").addEventListener("click", () => {
+  exportNilaiMatematikaITP();
+});
+
+function exportNilaiMatematikaITP() {
+  const endpoint =
+    "https://script.google.com/macros/s/AKfycbz4n25ErU69HxXXxXDf78cJH8xGlue4qOF37a27ouu2jG2zRDsh2_M1jOfaI9Sial_F/exec";
+
+  const cabang = "ITP";
+
+  const merged = nilaiCache.map((nilai) => {
+    const murid = daftarMuridCache.find(
+      (m) => m.nama.toLowerCase() === nilai.nama.toLowerCase()
+    );
+    return {
+      ...nilai,
+      cabang: murid?.cabang || "",
+      noInduk: murid?.noInduk || "",
+    };
+  });
+
+  const sorted = merged
+    .filter((n) => (n.cabang || "").toLowerCase() === "itp")
+    .sort((a, b) =>
+      String(a.noInduk || "").localeCompare(String(b.noInduk || ""))
+    );
+
+  if (sorted.length === 0) {
+    return Swal.fire({
+      icon: "info",
+      title: `❌ Tidak Ada Data ${cabang}`,
+      text: `Tidak ditemukan murid dari cabang ${cabang} di daftar nilai.`,
+    });
+  }
+
+  const previewTable = sorted
+    .map(
+      (n, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${n.noInduk}</td>
+        <td>${n.nama}</td>
+        <td>${n.matematika ?? ""}</td>
+      </tr>`
+    )
+    .join("");
+
+  Swal.fire({
+    title: `📋 Konfirmasi Export Nilai Matematika ${cabang}`,
+    html: `
+      <p>Berikut adalah data yang akan dikirim ke spreadsheet:</p>
+      <div style="max-height: 300px; overflow-y: auto; text-align:left">
+        <table style="width:100%; font-size: 12px; border-collapse: collapse;" border="1" cellpadding="4">
+          <thead>
+            <tr style="background:#333; color:white">
+              <th>#</th>
+              <th>No Induk</th>
+              <th>Nama</th>
+              <th>Matematika</th>
+            </tr>
+          </thead>
+          <tbody>${previewTable}</tbody>
+        </table>
+      </div>
+    `,
+    width: 600,
+    showCancelButton: true,
+    confirmButtonText: "✅ Kirim Sekarang",
+  }).then(async (result) => {
+    if (!result.isConfirmed) return;
+
+    const payload = {
+      noInduk: sorted.map((n) => n.noInduk ?? ""),
+      nama: sorted.map((n) => n.nama ?? ""),
+      matematika: sorted.map((n) => n.matematika ?? ""),
+    };
+
+    Swal.fire({
+      title: "Mengirim data...",
+      text: `Sedang mengirim nilai matematika cabang ${cabang}...`,
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    try {
+      await fetch(endpoint, {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+        mode: "no-cors",
+      });
+
+      Swal.fire(
+        "✅ Sukses",
+        `Data nilai Matematika ${cabang} berhasil dikirim.`,
+        "success"
+      );
+    } catch (err) {
+      Swal.fire("❌ Gagal", `Gagal kirim data Matematika ${cabang}.`, "error");
+    }
+  });
+}
+
 // Render nilai murid
 function renderNilaiMuridPage(data, page = 1) {
   const tbody = document.getElementById("daftarNilaiMurid");
   tbody.innerHTML = "";
 
+  const sorted = [...data].sort((a, b) =>
+    String(a.noInduk || "").localeCompare(String(b.noInduk || ""))
+  );
+
   const start = (page - 1) * itemsPerPageNilai;
   const end = start + itemsPerPageNilai;
-  const paginatedItems = data.slice(start, end);
+  const paginatedItems = sorted.slice(start, end);
 
   paginatedItems.forEach((item) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
+      <td>${item.noInduk}</td>
       <td class="sticky-col">${item.nama}</td>
-      <td>${item.kelas}</td>
-      <td>${item.level}</td>
-      <td>${item.cabang}</td>
       <td>${item.reading !== null ? item.reading : "menunggu"}</td>
       <td>${item.listening !== null ? item.listening : "menunggu"}</td>
       <td>${item.writing !== null ? item.writing : "menunggu"}</td>
