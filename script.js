@@ -857,7 +857,7 @@ document
 
 function exportNilaiInggrisITP() {
   const endpoint =
-    "https://script.google.com/macros/s/AKfycbz4g9sS7uhKfsnYHzAGtJbNardBkN4ik3l7uYZB5xr-3_1wUFW85Vd3I9_M5G5n25nZ/exec";
+    "https://script.google.com/macros/s/AKfycbyG6ZA5kaaUtIRHYjUTadAO8m7ZjpqiJxcrdPcBTF4aTNHwqbUKczOeZd3XbEV1TjX2Mw/exec";
 
   const cabang = "ITP";
 
@@ -965,7 +965,7 @@ document.getElementById("exportNilaiMatITP").addEventListener("click", () => {
 
 function exportNilaiMatematikaITP() {
   const endpoint =
-    "https://script.google.com/macros/s/AKfycbz4n25ErU69HxXXxXDf78cJH8xGlue4qOF37a27ouu2jG2zRDsh2_M1jOfaI9Sial_F/exec";
+    "https://script.google.com/macros/s/AKfycbxQO-ywwSRGj1P8Dt-BFc4iPccFh9ziw67dWxCUYn33hsKQmI5iNtXe2uVdqPde1ncjdA/exec";
 
   const cabang = "ITP";
 
