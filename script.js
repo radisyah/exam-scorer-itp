@@ -45,7 +45,7 @@ const itemsPerPage = 5;
 const itemsPerPageNilai = 5;
 
 // === KONFIGURASI MAINTENANCE ===
-const isUnderMaintenance = false; // Ubah menjadi true jika situs sedang perbaikan
+const isUnderMaintenance = true; // Ubah menjadi true jika situs sedang perbaikan
 
 // === CEK DAN ATUR TAMPILAN AKSES ===
 function checkMaintenance() {
@@ -849,18 +849,15 @@ document
     }
   });
 
-document
-  .getElementById("exportNilaiInggrisITP")
-  .addEventListener("click", () => {
-    exportNilaiInggrisITP();
-  });
+function filterAndExportNilaiInggirsByCabang(cabang) {
+  const ENDPOINT_KGM =
+    "https://script.google.com/macros/s/AKfycbyR2Il8pY-RkA9RA_0doQj_o9gHTV-QX7j8QhUtkxELOkDLt6ExkrgAqT273gObQ1G-QA/exec";
+  const ENDPOINT_KLT =
+    "https://script.google.com/macros/s/AKfycbztQizXDDc1F7sPcgRGfijJ7BZbNeXC0EfjN591WXnxVn_QnlFdU9xPbtRiKAWjIVeDWQ/exec";
 
-function exportNilaiInggrisITP() {
-  const endpoint =
-    "https://script.google.com/macros/s/AKfycbyG6ZA5kaaUtIRHYjUTadAO8m7ZjpqiJxcrdPcBTF4aTNHwqbUKczOeZd3XbEV1TjX2Mw/exec";
+  const endpoint = cabang.toUpperCase() === "KGM" ? ENDPOINT_KGM : ENDPOINT_KLT;
 
-  const cabang = "ITP";
-
+  // Gabungkan nilai dengan murid (tambahkan noInduk & cabang)
   const merged = nilaiCache.map((nilai) => {
     const murid = daftarMuridCache.find(
       (m) => m.nama.toLowerCase() === nilai.nama.toLowerCase()
@@ -872,8 +869,11 @@ function exportNilaiInggrisITP() {
     };
   });
 
+  // Filter berdasarkan cabang
   const sorted = merged
-    .filter((n) => (n.cabang || "").toLowerCase() === "itp")
+    .filter((n) =>
+      (n.cabang || "").toLowerCase().includes(cabang.toLowerCase())
+    )
     .sort((a, b) =>
       String(a.noInduk || "").localeCompare(String(b.noInduk || ""))
     );
@@ -881,47 +881,48 @@ function exportNilaiInggrisITP() {
   if (sorted.length === 0) {
     return Swal.fire({
       icon: "info",
-      title: `❌ Tidak Ada Data ${cabang}`,
-      text: `Tidak ditemukan murid dari cabang ${cabang} di daftar nilai.`,
+      title: `❌ Tidak Ada Data ${cabang.toUpperCase()}`,
+      text: `Tidak ditemukan murid dari cabang ${cabang.toUpperCase()} di daftar nilai.`,
     });
   }
 
+  // Preview tetap ditampilkan meskipun ada yang kosong
   const previewTable = sorted
     .map(
       (n, i) => `
-        <tr>
-          <td>${i + 1}</td>
-          <td>${n.noInduk || "-"}</td>
-          <td>${n.nama || "-"}</td>
-          <td>${n.reading ?? ""}</td>
-          <td>${n.listening ?? ""}</td>
-          <td>${n.writing ?? ""}</td>
-          <td>${n.speaking ?? ""}</td>
-        </tr>`
+            <tr>
+              <td>${i + 1}</td>
+              <td>${n.noInduk || "-"}</td>
+              <td>${n.nama || "-"}</td>
+              <td>${n.reading ?? ""}</td>
+              <td>${n.listening ?? ""}</td>
+              <td>${n.writing ?? ""}</td>
+              <td>${n.speaking ?? ""}</td>
+            </tr>`
     )
     .join("");
 
   Swal.fire({
-    title: `📋 Konfirmasi Export Nilai ${cabang}`,
+    title: `📋 Konfirmasi Export Nilai ${cabang.toUpperCase()}`,
     html: `
-        <p>Berikut adalah data yang akan dikirim ke spreadsheet:</p>
-        <div style="max-height: 300px; overflow-y: auto; text-align:left">
-          <table style="width:100%; font-size: 12px; border-collapse: collapse;" border="1" cellpadding="4">
-            <thead>
-              <tr style="background:#333; color:white">
-                <th>#</th>
-                <th>No Induk</th>
-                <th>Nama</th>
-                <th>Reading</th>
-                <th>Listening</th>
-                <th>Writing</th>
-                <th>Speaking</th>
-              </tr>
-            </thead>
-            <tbody>${previewTable}</tbody>
-          </table>
-        </div>
-      `,
+            <p>Berikut adalah data yang akan dikirim ke spreadsheet (nilai kosong akan dilewati):</p>
+            <div style="max-height: 300px; overflow-y: auto; text-align:left">
+              <table style="width:100%; font-size: 12px; border-collapse: collapse;" border="1" cellpadding="4">
+                <thead>
+                  <tr style="background:#333; color:white">
+                    <th>#</th>
+                    <th>No Induk</th>
+                    <th>Nama</th>
+                    <th>Reading</th>
+                    <th>Listening</th>
+                    <th>Writing</th>
+                    <th>Speaking</th>
+                  </tr>
+                </thead>
+                <tbody>${previewTable}</tbody>
+              </table>
+            </div>
+          `,
     width: 750,
     showCancelButton: true,
     confirmButtonText: "✅ Kirim Sekarang",
@@ -939,106 +940,7 @@ function exportNilaiInggrisITP() {
 
     Swal.fire({
       title: "Mengirim data...",
-      text: `Sedang mengirim nilai ${cabang} ke spreadsheet...`,
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading(),
-    });
-
-    try {
-      await fetch(endpoint, {
-        method: "POST",
-        body: JSON.stringify(payload),
-        headers: { "Content-Type": "application/json" },
-        mode: "no-cors",
-      });
-
-      Swal.fire("✅ Sukses", `Data ${cabang} berhasil dikirim.`, "success");
-    } catch (err) {
-      Swal.fire("❌ Gagal", `Gagal kirim data ${cabang}.`, "error");
-    }
-  });
-}
-
-document.getElementById("exportNilaiMatITP").addEventListener("click", () => {
-  exportNilaiMatematikaITP();
-});
-
-function exportNilaiMatematikaITP() {
-  const endpoint =
-    "https://script.google.com/macros/s/AKfycbxQO-ywwSRGj1P8Dt-BFc4iPccFh9ziw67dWxCUYn33hsKQmI5iNtXe2uVdqPde1ncjdA/exec";
-
-  const cabang = "ITP";
-
-  const merged = nilaiCache.map((nilai) => {
-    const murid = daftarMuridCache.find(
-      (m) => m.nama.toLowerCase() === nilai.nama.toLowerCase()
-    );
-    return {
-      ...nilai,
-      cabang: murid?.cabang || "",
-      noInduk: murid?.noInduk || "",
-    };
-  });
-
-  const sorted = merged
-    .filter((n) => (n.cabang || "").toLowerCase() === "itp")
-    .sort((a, b) =>
-      String(a.noInduk || "").localeCompare(String(b.noInduk || ""))
-    );
-
-  if (sorted.length === 0) {
-    return Swal.fire({
-      icon: "info",
-      title: `❌ Tidak Ada Data ${cabang}`,
-      text: `Tidak ditemukan murid dari cabang ${cabang} di daftar nilai.`,
-    });
-  }
-
-  const previewTable = sorted
-    .map(
-      (n, i) => `
-      <tr>
-        <td>${i + 1}</td>
-        <td>${n.noInduk}</td>
-        <td>${n.nama}</td>
-        <td>${n.matematika ?? ""}</td>
-      </tr>`
-    )
-    .join("");
-
-  Swal.fire({
-    title: `📋 Konfirmasi Export Nilai Matematika ${cabang}`,
-    html: `
-      <p>Berikut adalah data yang akan dikirim ke spreadsheet:</p>
-      <div style="max-height: 300px; overflow-y: auto; text-align:left">
-        <table style="width:100%; font-size: 12px; border-collapse: collapse;" border="1" cellpadding="4">
-          <thead>
-            <tr style="background:#333; color:white">
-              <th>#</th>
-              <th>No Induk</th>
-              <th>Nama</th>
-              <th>Matematika</th>
-            </tr>
-          </thead>
-          <tbody>${previewTable}</tbody>
-        </table>
-      </div>
-    `,
-    width: 600,
-    showCancelButton: true,
-    confirmButtonText: "✅ Kirim Sekarang",
-  }).then(async (result) => {
-    if (!result.isConfirmed) return;
-
-    const payload = {
-      noInduk: sorted.map((n) => n.noInduk ?? ""),
-      nama: sorted.map((n) => n.nama ?? ""),
-      matematika: sorted.map((n) => n.matematika ?? ""),
-    };
-
-    Swal.fire({
-      title: "Mengirim data...",
-      text: `Sedang mengirim nilai matematika cabang ${cabang}...`,
+      text: `Sedang mengirim nilai ${cabang.toUpperCase()} ke spreadsheet...`,
       allowOutsideClick: false,
       didOpen: () => Swal.showLoading(),
     });
@@ -1053,11 +955,16 @@ function exportNilaiMatematikaITP() {
 
       Swal.fire(
         "✅ Sukses",
-        `Data nilai Matematika ${cabang} berhasil dikirim.`,
+        `Data ${cabang.toUpperCase()} berhasil dikirim ke spreadsheet.`,
         "success"
       );
     } catch (err) {
-      Swal.fire("❌ Gagal", `Gagal kirim data Matematika ${cabang}.`, "error");
+      console.error("❌ Gagal kirim:", err);
+      Swal.fire(
+        "❌ Gagal",
+        `Terjadi kesalahan saat mengirim data ${cabang.toUpperCase()}.`,
+        "error"
+      );
     }
   });
 }
