@@ -45,7 +45,7 @@ const itemsPerPage = 5;
 const itemsPerPageNilai = 5;
 
 // === KONFIGURASI MAINTENANCE ===
-const isUnderMaintenance = true; // Ubah menjadi true jika situs sedang perbaikan
+const isUnderMaintenance = false; // Ubah menjadi true jika situs sedang perbaikan
 
 // === CEK DAN ATUR TAMPILAN AKSES ===
 function checkMaintenance() {
@@ -339,6 +339,9 @@ async function simpanNilaiTanpaDuplikat(siswaArray) {
   let berhasil = 0;
   let duplikat = [];
 
+  // Reset daftarMuridCache sebelum proses baru dimulai
+  daftarMuridCache = [];
+
   Swal.fire({
     title: "Menyimpan data...",
     html: `
@@ -353,35 +356,25 @@ async function simpanNilaiTanpaDuplikat(siswaArray) {
   });
 
   for (let i = 0; i < total; i++) {
-    const s = siswaArray[i];
+    const siswa = siswaArray[i];
 
-    const siswa = {
-      noInduk: s.noInduk?.toString().trim() || "",
-      nama: s.nama?.toString().trim() || "",
-      reading: s.reading !== undefined ? parseInt(s.reading) : null,
-      listening: s.listening !== undefined ? parseInt(s.listening) : null,
-      writing: s.writing !== undefined ? parseInt(s.writing) : null,
-      speaking: s.speaking !== undefined ? parseInt(s.speaking) : null,
-      matematika: s.matematika !== undefined ? parseInt(s.matematika) : null,
-      tanggal: new Date().toISOString(),
-    };
-
-    if (!siswa.nama || !siswa.noInduk) {
-      continue; // skip baris tidak valid
-    }
-
+    // Pengecekan duplikat di Firestore
     const querySnapshot = await getDocs(
       query(collection(db, "nilai"), where("nama", "==", siswa.nama))
     );
 
     if (!querySnapshot.empty) {
+      // Jika ada data yang sudah ada di Firestore, tandai sebagai duplikat
       duplikat.push(siswa.nama);
     } else {
-      await setDoc(doc(db, "nilai", siswa.nama.toLowerCase()), siswa);
+      // Jika tidak ada duplikat, simpan data ke Firestore
+      const docRef = await addDoc(collection(db, "nilai"), siswa);
+      // Tambahkan siswa ke cache
+      daftarMuridCache.push({ id: docRef.id, ...siswa });
       berhasil++;
     }
 
-    // Progress bar
+    // Update progress bar
     const percent = Math.floor(((i + 1) / total) * 100);
     document.getElementById("progressBar").style.width = `${percent}%`;
     document.getElementById("progressText").textContent = `${
@@ -389,6 +382,7 @@ async function simpanNilaiTanpaDuplikat(siswaArray) {
     } / ${total} diproses`;
   }
 
+  // Setelah selesai, tampilkan notifikasi
   Swal.fire({
     icon: duplikat.length ? "warning" : "success",
     title: "Selesai",
@@ -397,6 +391,7 @@ async function simpanNilaiTanpaDuplikat(siswaArray) {
     }`,
   });
 
+  // Reset input file setelah selesai
   document.getElementById("excelNilaiInput").value = "";
 }
 
@@ -850,12 +845,12 @@ document
   });
 
 function filterAndExportNilaiInggirsByCabang(cabang) {
-  const ENDPOINT_KGM =
-    "https://script.google.com/macros/s/AKfycbyR2Il8pY-RkA9RA_0doQj_o9gHTV-QX7j8QhUtkxELOkDLt6ExkrgAqT273gObQ1G-QA/exec";
+  const ENDPOINT_ITP =
+    "https://script.google.com/macros/s/AKfycbyG6ZA5kaaUtIRHYjUTadAO8m7ZjpqiJxcrdPcBTF4aTNHwqbUKczOeZd3XbEV1TjX2Mw/exec ";
   const ENDPOINT_KLT =
-    "https://script.google.com/macros/s/AKfycbztQizXDDc1F7sPcgRGfijJ7BZbNeXC0EfjN591WXnxVn_QnlFdU9xPbtRiKAWjIVeDWQ/exec";
+    "https://script.google.com/macros/s/AKfycbxQO-ywwSRGj1P8Dt-BFc4iPccFh9ziw67dWxCUYn33hsKQmI5iNtXe2uVdqPde1ncjdA/exec";
 
-  const endpoint = cabang.toUpperCase() === "KGM" ? ENDPOINT_KGM : ENDPOINT_KLT;
+  const endpoint = cabang.toUpperCase() === "ITP" ? ENDPOINT_ITP : ENDPOINT_KLT;
 
   // Gabungkan nilai dengan murid (tambahkan noInduk & cabang)
   const merged = nilaiCache.map((nilai) => {
@@ -890,39 +885,39 @@ function filterAndExportNilaiInggirsByCabang(cabang) {
   const previewTable = sorted
     .map(
       (n, i) => `
-            <tr>
-              <td>${i + 1}</td>
-              <td>${n.noInduk || "-"}</td>
-              <td>${n.nama || "-"}</td>
-              <td>${n.reading ?? ""}</td>
-              <td>${n.listening ?? ""}</td>
-              <td>${n.writing ?? ""}</td>
-              <td>${n.speaking ?? ""}</td>
-            </tr>`
+                <tr>
+                  <td>${i + 1}</td>
+                  <td>${n.noInduk || "-"}</td>
+                  <td>${n.nama || "-"}</td>
+                  <td>${n.reading ?? ""}</td>
+                  <td>${n.listening ?? ""}</td>
+                  <td>${n.writing ?? ""}</td>
+                  <td>${n.speaking ?? ""}</td>
+                </tr>`
     )
     .join("");
 
   Swal.fire({
     title: `📋 Konfirmasi Export Nilai ${cabang.toUpperCase()}`,
     html: `
-            <p>Berikut adalah data yang akan dikirim ke spreadsheet (nilai kosong akan dilewati):</p>
-            <div style="max-height: 300px; overflow-y: auto; text-align:left">
-              <table style="width:100%; font-size: 12px; border-collapse: collapse;" border="1" cellpadding="4">
-                <thead>
-                  <tr style="background:#333; color:white">
-                    <th>#</th>
-                    <th>No Induk</th>
-                    <th>Nama</th>
-                    <th>Reading</th>
-                    <th>Listening</th>
-                    <th>Writing</th>
-                    <th>Speaking</th>
-                  </tr>
-                </thead>
-                <tbody>${previewTable}</tbody>
-              </table>
-            </div>
-          `,
+                <p>Berikut adalah data yang akan dikirim ke spreadsheet:</p>
+                <div style="max-height: 300px; overflow-y: auto; text-align:left">
+                  <table style="width:100%; font-size: 12px; border-collapse: collapse;" border="1" cellpadding="4">
+                    <thead>
+                      <tr style="background:#333; color:white">
+                        <th>#</th>
+                        <th>No Induk</th>
+                        <th>Nama</th>
+                        <th>Reading</th>
+                        <th>Listening</th>
+                        <th>Writing</th>
+                        <th>Speaking</th>
+                      </tr>
+                    </thead>
+                    <tbody>${previewTable}</tbody>
+                  </table>
+                </div>
+              `,
     width: 750,
     showCancelButton: true,
     confirmButtonText: "✅ Kirim Sekarang",
@@ -963,6 +958,117 @@ function filterAndExportNilaiInggirsByCabang(cabang) {
       Swal.fire(
         "❌ Gagal",
         `Terjadi kesalahan saat mengirim data ${cabang.toUpperCase()}.`,
+        "error"
+      );
+    }
+  });
+}
+
+function filterAndExportNilaiMatematikaByCabang(cabang) {
+  const ENDPOINT_ITP =
+    "https://script.google.com/macros/s/AKfycbwQgkJIoK-KtXa5sLaojmiaZfvEktFgWRL_fARUu8kZqOh3OKioqFxEel4nmi_K4g2O/exec";
+  const ENDPOINT_KLT =
+    "https://script.google.com/macros/s/AKfycbwrPA7iWlw1juVFNxuo5rWkCv4acbw7AqHx6hc9HkwUwpBkKWgNkynIHLyBnxOvbB9z/exec";
+
+  const endpoint = cabang.toUpperCase() === "ITP" ? ENDPOINT_ITP : ENDPOINT_KLT;
+
+  // Gabungkan data nilai dengan data murid
+  const merged = nilaiCache.map((nilai) => {
+    const murid = daftarMuridCache.find(
+      (m) => m.nama.toLowerCase() === nilai.nama.toLowerCase()
+    );
+    return {
+      ...nilai,
+      cabang: murid?.cabang || "",
+      noInduk: murid?.noInduk || "",
+    };
+  });
+
+  // Filter berdasarkan cabang
+  const sorted = merged
+    .filter((n) =>
+      (n.cabang || "").toLowerCase().includes(cabang.toLowerCase())
+    )
+    .sort((a, b) =>
+      String(a.noInduk || "").localeCompare(String(b.noInduk || ""))
+    );
+
+  if (sorted.length === 0) {
+    return Swal.fire({
+      icon: "info",
+      title: `❌ Tidak Ada Data ${cabang.toUpperCase()}`,
+      text: `Tidak ditemukan murid dari cabang ${cabang.toUpperCase()} di daftar nilai.`,
+    });
+  }
+
+  // Tampilkan preview
+  const previewTable = sorted
+    .map(
+      (n, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${n.noInduk}</td>
+            <td>${n.nama}</td>
+            <td>${n.matematika ?? ""}</td>
+          </tr>`
+    )
+    .join("");
+
+  Swal.fire({
+    title: `📋 Konfirmasi Export Nilai Matematika ${cabang.toUpperCase()}`,
+    html: `
+          <p>Berikut adalah data yang akan dikirim ke spreadsheet:</p>
+          <div style="max-height: 300px; overflow-y: auto; text-align:left">
+            <table style="width:100%; font-size: 12px; border-collapse: collapse;" border="1" cellpadding="4">
+              <thead>
+                <tr style="background:#333; color:white">
+                  <th>#</th>
+                  <th>No Induk</th>
+                  <th>Nama</th>
+                  <th>Matematika</th>
+                </tr>
+              </thead>
+              <tbody>${previewTable}</tbody>
+            </table>
+          </div>
+        `,
+    width: 600,
+    showCancelButton: true,
+    confirmButtonText: "✅ Kirim Sekarang",
+  }).then(async (result) => {
+    if (!result.isConfirmed) return;
+
+    const payload = {
+      noInduk: sorted.map((n) => n.noInduk ?? ""),
+      nama: sorted.map((n) => n.nama ?? ""),
+      matematika: sorted.map((n) => n.matematika ?? ""),
+    };
+
+    Swal.fire({
+      title: "Mengirim data...",
+      text: `Sedang mengirim nilai matematika cabang ${cabang.toUpperCase()}...`,
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    try {
+      await fetch(endpoint, {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+        mode: "no-cors",
+      });
+
+      Swal.fire(
+        "✅ Sukses",
+        `Data nilai Matematika ${cabang.toUpperCase()} berhasil dikirim ke spreadsheet.`,
+        "success"
+      );
+    } catch (err) {
+      console.error("❌ Gagal kirim:", err);
+      Swal.fire(
+        "❌ Gagal",
+        `Terjadi kesalahan saat mengirim data Matematika ${cabang.toUpperCase()}.`,
         "error"
       );
     }
@@ -1227,6 +1333,17 @@ function isiOpsiNilaiSelect() {
     });
   });
 }
+
+// EVENT BINDING
+document
+  .getElementById("exportNilaiInggrisITP")
+  .addEventListener("click", () => {
+    filterAndExportNilaiInggirsByCabang("ITP");
+  });
+
+document.getElementById("exportNilaiMatITP").addEventListener("click", () => {
+  filterAndExportNilaiMatematikaByCabang("ITP");
+});
 
 window.addEventListener("DOMContentLoaded", async () => {
   await loadCaches(); // ✅ Ambil semua data murid dan nilai sekali saja
